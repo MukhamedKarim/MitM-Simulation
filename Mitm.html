@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MitM Attack Simulation - Diffie-Hellman</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f7fa;
+      padding: 20px;
+      color: #333;
+    }
+    h2 {
+      color: #444;
+    }
+    input[type=number], input[type=text] {
+      width: 60px;
+      margin: 5px;
+      padding: 5px;
+    }
+    textarea {
+      width: 100%;
+      height: 200px;
+      margin-top: 10px;
+      padding: 10px;
+      font-family: monospace;
+    }
+    .block {
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+    label {
+      display: inline-block;
+      width: 200px;
+    }
+    button {
+      padding: 10px 20px;
+      background-color: #4caf50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+  </style>
+</head>
+<body>
+  <div class="block">
+    <h2>MitM Simulation</h2>
+
+    <label>Общий модуль p (простое число):</label>
+    <input id="p" type="number" value="23" title="Общий модуль, известен всем участникам" /><br/>
+
+    <label>Примитивный корень g:</label>
+    <input id="g" type="number" value="7" title="Примитивный корень по модулю p, известен всем участникам" /><br/>
+
+    <label>Секретный ключ Алисы (a):</label>
+    <input id="a" type="number" value="11" title="Секрет Алисы, не передаётся по сети" /><br/>
+
+    <label>Секретный ключ Боба (b):</label>
+    <input id="b" type="number" value="12" title="Секрет Боба, не передаётся по сети" /><br/>
+
+    <label>Секретный ключ Евы для Алисы (ea):</label>
+    <input id="ea" type="number" value="9" title="Секрет Евы, используемый при взаимодействии с Алисой" /><br/>
+
+    <label>Секретный ключ Евы для Боба (eb):</label>
+    <input id="eb" type="number" value="13" title="Секрет Евы, используемый при взаимодействии с Бобом" /><br/>
+
+    <label>Сообщение от Алисы (m):</label>
+    <input id="message" type="number" value="20" title="Сообщение, которое Алиса хочет передать Бобу" /><br/>
+
+    <label>Поддельное сообщение от Евы (необязательно):</label>
+    <input id="fakeMessage" type="number" value="" placeholder="(например, 15)" title="Сообщение, которое Ева может подставить вместо оригинального" /><br/>
+
+    <button onclick="simulate()">Симулировать атаку</button>
+  </div>
+
+  <div class="block">
+    <h3>Результаты симуляции</h3>
+    <textarea id="output" readonly></textarea>
+  </div>
+
+  <script>
+    function mod(a, b) {
+      return ((a % b) + b) % b;
+    }
+
+    function powmod(base, exp, mod) {
+      let result = 1;
+      base = base % mod;
+      while (exp > 0) {
+        if (exp % 2 === 1) result = (result * base) % mod;
+        exp = Math.floor(exp / 2);
+        base = (base * base) % mod;
+      }
+      return result;
+    }
+
+    function simulate() {
+      const p = parseInt(document.getElementById("p").value);
+      const g = parseInt(document.getElementById("g").value);
+      const a = parseInt(document.getElementById("a").value);
+      const b = parseInt(document.getElementById("b").value);
+      const ea = parseInt(document.getElementById("ea").value);
+      const eb = parseInt(document.getElementById("eb").value);
+      const message = parseInt(document.getElementById("message").value);
+      const fakeMessage = document.getElementById("fakeMessage").value ? parseInt(document.getElementById("fakeMessage").value) : null;
+
+      const A = powmod(g, a, p);
+      const B = powmod(g, b, p);
+      const EA = powmod(g, ea, p);
+      const EB = powmod(g, eb, p);
+
+      const K_AE = powmod(EA, a, p);
+      const K_EA = powmod(A, ea, p);
+      const K_EB = powmod(B, eb, p);
+      const K_BE = powmod(EB, b, p);
+
+      let log = `Publicly known values: p = ${p}, g = ${g}\n`;
+      log += `Alice's public key: ${A}\nBob's public key: ${B}\n`;
+      log += `Eve to Alice's public key: ${EA}\nEve to Bob's public key: ${EB}\n`;
+      log += `Alice's computed shared secret: ${K_AE}\nBob's computed shared secret: ${K_BE}\n`;
+      log += `Eve to Alice's computed shared secret: ${K_EA}\nEve to Bob's computed shared secret: ${K_EB}\n`;
+      log += `Shared secret successfully established: ${K_AE}, ${K_BE}\n\n`;
+
+      const aliceCipher = mod(message + K_AE, p);
+      const eveReads = mod(aliceCipher - K_EA, p);
+      const eveForwards = mod((fakeMessage !== null ? fakeMessage : eveReads) + K_EB, p);
+      const bobReceives = mod(eveForwards - K_BE, p);
+
+      if (fakeMessage !== null) {
+        log += `Transmiting fake message\n`;
+      } else {
+        log += `Transmiting message correctly\n`;
+      }
+      log += `Message: ${message}, Alice transmits ${aliceCipher}, Eve receivs ${eveReads}, Eve transmits ${eveForwards}, Bob receivs ${bobReceives}`;
+
+      document.getElementById("output").value = log;
+    }
+  </script>
+</body>
+</html>
